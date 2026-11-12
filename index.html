@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Koalendario</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Koalendario">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#F3F8F4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#16201A" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>html{background:#F3F8F4}@media(prefers-color-scheme:dark){html{background:#16201A}}</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="sheet"></div>
+<div id="upd" hidden>Aggiorno Koalendario…</div>
+<script>
+(function(){
+  function go(v){
+    window.APP_VERSION=v;
+    var l=document.createElement('link');l.rel='stylesheet';l.href='style.css?v='+v;document.head.appendChild(l);
+    ['plan.js','app.js'].forEach(function(f){var s=document.createElement('script');s.src=f+'?v='+v;s.async=false;document.body.appendChild(s);});
+  }
+  var last='0';
+  try{last=localStorage.getItem('koal.ver')||'0';}catch(e){}
+  fetch('version.json?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.json();}).then(function(j){
+    try{localStorage.setItem('koal.ver',j.version);}catch(e){}
+    go(j.version);
+  }).catch(function(){go(last);});
+})();
+</script>
+</body>
+</html>
