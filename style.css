@@ -94,3 +94,4 @@ label.f{display:block;margin:12px 0 4px;font-size:13px;color:var(--mute)}
 .row .main small{display:block}
 .row .main .badge{display:inline-block;margin-top:6px}
 .phrow .btns .btn{min-width:0;padding:8px 10px}
+.welcome{background:var(--green-l);border:1px solid var(--green);border-radius:14px;padding:12px 14px;font-weight:600;color:var(--green-d);margin:0 0 12px;line-height:1.4}

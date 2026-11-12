@@ -24,6 +24,8 @@
 
   let state = load();
   state.tutorial = state.tutorial || {};
+  state.usage = state.usage || { opens: 0, first: Date.now(), last: 0, screens: {}, actions: {} };
+  state.usage.opens++; state.usage.last = Date.now();
   let view = 'oggi', ctx = null, openedSess = null, slotsCache = [], currentSheet = null, ideaType = 'funzione';
   let calMonth = P.ds(new Date()).slice(0, 7), selDay = P.ds(new Date());
 
@@ -65,8 +67,8 @@
   /* ---------- schermate ---------- */
   function vOggi() {
     const today = ctx.today, plan = ctx.plan;
-    let h = tip('t_oggi', 'Benvenuta in Koalendario!', 'Qui vedi la tua giornata: appuntamenti e sessioni di studio. Le sessioni con il bordo tratteggiato sono proposte dall\'app: toccane una per accettarla, segnarla come fatta o spostarla. Più in basso trovi a che punto sei con ogni esame.');
-    h += '<h1>' + P.fullDay(today) + '</h1>';
+    let h = tip('t_oggi', 'Come funziona', 'Qui vedi la tua giornata: appuntamenti e sessioni di studio. Le sessioni con il bordo tratteggiato sono proposte dall\'app: toccane una per accettarla, segnarla come fatta o spostarla. Più in basso trovi a che punto sei con ogni esame.');
+    h = '<div class="welcome">Benvenuta in Koalendario, il calendario dei koala ben organizzati 🐨</div>' + h + '<h1>' + P.fullDay(today) + '</h1>';
     state.notices.forEach(n => { h += '<div class="notice"><span>' + esc(n.text) + '</span><button data-act="dismiss" data-id="' + n.id + '" aria-label="Chiudi">✕</button></div>'; });
     plan.warnings.forEach(w => {
       const ex = examById(w.examId);
@@ -110,7 +112,7 @@
   }
   function vIdee() {
     let h = tip('t_idee', 'Idee e problemi', 'Scrivi qui cosa vorresti aggiungere all\'app, cosa cambieresti o cosa non funziona. Serve a migliorare Koalendario.');
-    h += '<h1>Idee e problemi</h1><div class="chips" id="ideaTypes">';
+    h += '<h1>Idee e problemi</h1>' + (getLink() ? '' : '<div class="notice"><span>Questo telefono non è ancora collegato: le tue idee restano qui finché non lo colleghi da Opzioni → Collegamento.</span></div>') + '<div class="chips" id="ideaTypes">';
     [['funzione', 'Funzione nuova'], ['cambio', 'Cambiare qualcosa'], ['problema', 'Problema']].forEach(t => { h += '<button class="chip' + (ideaType === t[0] ? ' on' : '') + '" data-act="ideaType" data-t="' + t[0] + '">' + t[1] + '</button>'; });
     h += '</div><label class="f">Scrivi qui</label><textarea id="idea-text" placeholder="Es. Vorrei vedere una vista settimanale…"></textarea><div id="f-err" class="err"></div><button class="btn block" data-act="ideaSend">Invia</button>';
     if (state.notes.length) {
@@ -124,7 +126,7 @@
   }
   function vOpz() {
     const s = state.settings;
-    let h = tip('t_opz', 'Le opzioni', 'Qui decidi quando puoi studiare, quante ore al massimo al giorno e le fasi del tuo metodo di studio. Puoi cambiare i nomi, aggiungere o togliere fasi: l\'app si adatta.');
+    let h = tip('t_opz', 'Le opzioni', 'Qui decidi quando puoi studiare, quante ore al massimo al giorno e le fasi del tuo metodo di studio. Puoi cambiare i nomi, aggiungere o togliere fasi: l\'app si adatta. Nella sezione Collegamento metti il nome del telefono e la chiave che ti dà Otto.');
     h += '<h1>Opzioni</h1><h2>Quando studi</h2><div class="card"><div class="two"><div><label class="f" style="margin-top:0">Dalle</label><input type="time" data-s="winStart" value="' + s.winStart + '"></div><div><label class="f" style="margin-top:0">Alle</label><input type="time" data-s="winEnd" value="' + s.winEnd + '"></div></div>';
     h += '<label class="f">Ore massime di studio al giorno</label><input type="number" inputmode="decimal" step="0.5" min="1" max="12" data-s="maxHours" value="' + s.maxHours + '">';
     h += '<label class="f">Durata massima di una sessione (minuti)</label><input type="number" inputmode="numeric" step="5" min="30" max="240" data-s="maxBlock" value="' + s.maxBlock + '">';
@@ -135,6 +137,7 @@
       h += '<div class="btns" style="margin-top:8px"><button class="btn ghost" data-act="phUp" data-i="' + i + '"' + (i === 0 ? ' disabled' : '') + '>↑</button><button class="btn ghost" data-act="phDn" data-i="' + i + '"' + (i === s.phases.length - 1 ? ' disabled' : '') + '>↓</button><button class="btn danger" data-act="phDel" data-i="' + i + '">Togli</button></div></div>';
     });
     h += '<button class="btn ghost block" data-act="phAdd">+ Aggiungi fase</button>';
+    h += linkSection();
     h += '<h2>Altro</h2><button class="btn ghost block" data-act="resetTips">Rivedi i suggerimenti</button><p class="mute" style="text-align:center;margin-top:18px">Koalendario · versione ' + esc(VER) + '</p>';
     return h;
   }
@@ -235,7 +238,7 @@
 
   /* ---------- azioni ---------- */
   const A = {
-    tab(el) { view = el.dataset.v; render(); window.scrollTo(0, 0); },
+    tab(el) { view = el.dataset.v; state.usage.screens[view] = (state.usage.screens[view] || 0) + 1; render(); window.scrollTo(0, 0); },
     tipOk(el) { state.tutorial[el.dataset.k] = true; save(); const t = el.closest('.tip'); if (t) t.remove(); },
     dismiss(el) { state.notices = state.notices.filter(n => n.id !== el.dataset.id); render(); },
     closeSheet() { closeSheet(); },
@@ -321,9 +324,24 @@
       const t = $('#idea-text').value.trim();
       if (!t) return setErr('Scrivi qualcosa prima di inviare.');
       state.notes.push({ id: P.uid(), type: ideaType, text: t, ts: Date.now(), status: 'nuova' });
+      render(); sync(true);
+    },
+    ideaDel(el) { state.notes = state.notes.filter(n => n.id !== el.dataset.id); render(); sync(true); },
+    async connect() {
+      const name = $('#lk-name').value.trim(), key = $('#lk-key').value.trim();
+      if (!name) return setErr('Scrivi un nome per questo telefono.');
+      if (!key) return setErr('Incolla la chiave di accesso.');
+      const slug = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      if (!slug) return setErr('Usa lettere o numeri nel nome.');
+      setErr('Collego…');
+      setLink({ name: name, slug: slug, key: key, last: 0, error: '' });
+      await sync(true);
+      const l = getLink();
+      if (l && l.error) { const m = l.error; setLink(null); return setErr(m); }
       render();
     },
-    ideaDel(el) { state.notes = state.notes.filter(n => n.id !== el.dataset.id); render(); },
+    async syncNow() { setErr('Invio…'); await sync(true); render(); },
+    disconnect() { if (!confirm('Scollegare questo telefono?')) return; setLink(null); render(); },
     offDay(el) {
       const i = +el.dataset.i, o = state.settings.offDays, k = o.indexOf(i);
       if (k >= 0) o.splice(k, 1); else o.push(i);
@@ -342,7 +360,7 @@
     const el = e.target.closest('[data-act]');
     if (!el || el.disabled) return;
     const f = A[el.dataset.act];
-    if (f) { e.preventDefault(); f(el, e); }
+    if (f) { e.preventDefault(); state.usage.actions[el.dataset.act] = (state.usage.actions[el.dataset.act] || 0) + 1; f(el, e); }
   });
   document.addEventListener('change', e => {
     const t = e.target;
@@ -368,6 +386,80 @@
     }
   });
 
+  /* ---------- collegamento con l'archivio privato ---------- */
+  const DATA_REPO = 'andreaguiotto02-8/koalendario-data';
+  const LINK_KEY = 'koalendario.link', ERR_KEY = 'koalendario.errors';
+  function getLink() { try { return JSON.parse(localStorage.getItem(LINK_KEY) || 'null'); } catch (e) { return null; } }
+  function setLink(o) { try { if (o) localStorage.setItem(LINK_KEY, JSON.stringify(o)); else localStorage.removeItem(LINK_KEY); } catch (e) {} }
+  function logErr(msg) {
+    try {
+      const a = JSON.parse(localStorage.getItem(ERR_KEY) || '[]');
+      a.push({ t: new Date().toISOString(), v: VER, m: String(msg).slice(0, 300) });
+      localStorage.setItem(ERR_KEY, JSON.stringify(a.slice(-20)));
+    } catch (e) {}
+  }
+  window.addEventListener('error', e => logErr(e.message + ' @' + String(e.filename || '').split('/').pop() + ':' + e.lineno));
+  window.addEventListener('unhandledrejection', e => logErr('promise: ' + (e.reason && e.reason.message || e.reason)));
+  function usagePayload(link) {
+    const u = state.usage, ua = navigator.userAgent;
+    let topics = 0; state.exams.forEach(x => { topics += x.topics.length; });
+    let errs = []; try { errs = JSON.parse(localStorage.getItem(ERR_KEY) || '[]'); } catch (e) {}
+    return {
+      device: link.name, platform: /iPhone|iPad/.test(ua) ? 'iOS' : /Android/.test(ua) ? 'Android' : 'altro',
+      installed: !!(navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches)),
+      version: VER, sentAt: new Date().toISOString(), firstOpen: new Date(u.first).toISOString(), lastOpen: new Date(u.last).toISOString(),
+      opens: u.opens, screens: u.screens, actions: u.actions,
+      counts: { events: state.events.length, exams: state.exams.length, topics: topics, sessionsAccepted: state.sessions.filter(x => x.status === 'accepted').length, sessionsDone: state.sessions.filter(x => x.status === 'done').length, notes: state.notes.length, phases: state.settings.phases.length },
+      settings: { winStart: state.settings.winStart, winEnd: state.settings.winEnd, maxHours: state.settings.maxHours, maxBlock: state.settings.maxBlock, offDays: state.settings.offDays },
+      tipsSeen: Object.keys(state.tutorial), errors: errs
+    };
+  }
+  const b64 = s => btoa(unescape(encodeURIComponent(s)));
+  async function ghPut(link, path, obj, msg) {
+    const url = 'https://api.github.com/repos/' + DATA_REPO + '/contents/' + path;
+    const h = { Authorization: 'Bearer ' + link.key, Accept: 'application/vnd.github+json' };
+    let sha;
+    const g = await fetch(url + '?t=' + Date.now(), { headers: h, cache: 'no-store' });
+    if (g.status === 200) sha = (await g.json()).sha; else if (g.status !== 404) throw { status: g.status };
+    const body = { message: msg, content: b64(JSON.stringify(obj, null, 1)) };
+    if (sha) body.sha = sha;
+    const r = await fetch(url, { method: 'PUT', headers: Object.assign({ 'Content-Type': 'application/json' }, h), body: JSON.stringify(body) });
+    if (!r.ok) throw { status: r.status };
+  }
+  let syncing = false;
+  async function sync(force) {
+    const link = getLink();
+    if (!link || !link.key || syncing) return;
+    if (!force && link.last && Date.now() - link.last < 10 * 60 * 1000) return;
+    syncing = true;
+    try {
+      const base = 'devices/' + link.slug + '/';
+      await ghPut(link, base + 'usage.json', usagePayload(link), 'Dati d\'uso ' + link.name);
+      await ghPut(link, base + 'notes.json', { device: link.name, notes: state.notes }, 'Idee e problemi ' + link.name);
+      link.last = Date.now(); link.error = '';
+    } catch (e) {
+      const st = e && e.status;
+      link.error = st === 401 ? 'La chiave non è valida o è scaduta.' : (st === 403 || st === 404) ? 'La chiave non ha accesso all\'archivio: controlla di aver scelto koalendario-data.' : !st ? 'Non riesco a collegarmi: controlla la connessione.' : 'Collegamento non riuscito (errore ' + st + ').';
+    }
+    setLink(link);
+    syncing = false;
+  }
+  function linkSection() {
+    const l = getLink();
+    let h = '<h2>Collegamento</h2><div class="card"><p class="mute" style="margin:0 0 6px">Serve a far arrivare a chi sviluppa l\'app le tue idee e come usi l\'app. Non vengono mai inviati i tuoi appuntamenti né i tuoi esami.</p>';
+    if (l) {
+      const when = l.last ? P.fmtDay(P.ds(new Date(l.last))) + ' alle ' + P.ts(new Date(l.last).getHours() * 60 + new Date(l.last).getMinutes()) : 'mai';
+      h += '<p style="margin:10px 0 4px"><b>Collegato come «' + esc(l.name) + '»</b></p><small>Ultimo invio: ' + when + '</small>';
+      if (l.error) h += '<div class="err">' + esc(l.error) + '</div>';
+      h += '<div id="f-err" class="err"></div><div class="btns"><button class="btn ghost" data-act="syncNow">Invia ora</button><button class="btn danger" data-act="disconnect">Scollega</button></div>';
+    } else {
+      h += '<label class="f">Nome di questo telefono</label><input id="lk-name" placeholder="Es. Koala" autocomplete="off">' +
+        '<label class="f">Chiave di accesso (te la dà Otto)</label><input id="lk-key" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Incollala qui">' +
+        '<div id="f-err" class="err"></div><button class="btn block" data-act="connect">Collega</button>';
+    }
+    return h + '</div>';
+  }
+
   /* ---------- aggiornamento automatico ---------- */
   let lastCheck = 0;
   async function checkUpdate() {
@@ -389,11 +481,12 @@
     } catch (e) {}
   }
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') { checkUpdate(); if (!$('#sheet').classList.contains('open')) render(); }
+    if (document.visibilityState === 'visible') { checkUpdate(); sync(); if (!$('#sheet').classList.contains('open')) render(); }
   });
   window.addEventListener('pageshow', checkUpdate);
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 
   render();
   checkUpdate();
+  sync();
 })();
