@@ -32,6 +32,11 @@
       { id: 'ph3', name: 'Studiare', minPerPage: 4, repeat: false },
       { id: 'ph4', name: 'Ripasso', minPerPage: 2, repeat: true }
     ],
+    kinds: [
+      { id: 'app', name: 'Appuntamento', c: '#4F7CAC' },
+      { id: 'lavoro', name: 'Lavoro', c: '#C98A2E' },
+      { id: 'altro', name: 'Altro', c: '#7A8F83' }
+    ],
     winStart: '09:00', winEnd: '21:00', maxHours: 4, maxBlock: 90, minBlock: 20, breakMin: 10, offDays: []
   });
   P.defaultState = () => ({ v: 1, events: [], exams: [], sessions: [], progress: {}, notices: [], notes: [], settings: P.defaultSettings() });
@@ -41,6 +46,7 @@
     Object.keys(d).forEach(k => { if (st[k] === undefined) st[k] = d[k]; });
     st.settings = Object.assign(P.defaultSettings(), st.settings || {});
     if (!Array.isArray(st.settings.phases) || !st.settings.phases.length) st.settings.phases = P.defaultSettings().phases;
+    if (!Array.isArray(st.settings.kinds) || !st.settings.kinds.length) st.settings.kinds = P.defaultSettings().kinds;
     return st;
   };
 
@@ -64,7 +70,9 @@
   })).sort((a, b) => a.start - b.start);
 
   P.unitsForExam = (st, exam) => {
-    const phases = st.settings.phases, units = [];
+    let phases = st.settings.phases;
+    if (Array.isArray(exam.phases)) { const sel = phases.filter(ph => exam.phases.indexOf(ph.id) >= 0); if (sel.length) phases = sel; }
+    const units = [];
     const maxPass = Math.max(1, ...exam.topics.map(t => t.passes || 1));
     for (let pass = 1; pass <= maxPass; pass++) {
       exam.topics.forEach(t => {

@@ -95,3 +95,11 @@ label.f{display:block;margin:12px 0 4px;font-size:13px;color:var(--mute)}
 .row .main .badge{display:inline-block;margin-top:6px}
 .phrow .btns .btn{min-width:0;padding:8px 10px}
 .welcome{background:var(--green-l);border:1px solid var(--green);border-radius:14px;padding:12px 14px;font-weight:600;color:var(--green-d);margin:0 0 12px;line-height:1.4}
+
+.sws{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;align-items:center}
+.sw{width:30px;height:30px;border-radius:50%;border:3px solid transparent;box-shadow:0 0 0 1px var(--line)}
+.sw.on{border-color:var(--ink)}
+input.clr{width:44px;height:34px;padding:2px;border-radius:8px}
+.dots u{background:var(--blue)}
+.imp{margin:6px 0 0;font-size:14px}
+.imp.bad{color:var(--red)}

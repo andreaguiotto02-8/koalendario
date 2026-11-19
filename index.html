@@ -24,7 +24,7 @@
   function go(v){
     window.APP_VERSION=v;
     var l=document.createElement('link');l.rel='stylesheet';l.href='style.css?v='+v;document.head.appendChild(l);
-    ['plan.js','app.js'].forEach(function(f){var s=document.createElement('script');s.src=f+'?v='+v;s.async=false;document.body.appendChild(s);});
+    ['plan.js','topics.js','app.js'].forEach(function(f){var s=document.createElement('script');s.src=f+'?v='+v;s.async=false;document.body.appendChild(s);});
   }
   var last='0';
   try{last=localStorage.getItem('koal.ver')||'0';}catch(e){}

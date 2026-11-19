@@ -5,8 +5,9 @@
   const $ = s => document.querySelector(s);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const COLORS = ['#E5594F', '#4F7CAC', '#C98A2E', '#8B6BB0', '#3F9A8C', '#D2689A'];
-  const KINDS = [{ id: 'app', name: 'Appuntamento', c: '#4F7CAC' }, { id: 'lavoro', name: 'Lavoro', c: '#C98A2E' }, { id: 'altro', name: 'Altro', c: '#7A8F83' }];
-  const kind = id => KINDS.find(k => k.id === id) || KINDS[2];
+  const SWATCHES = ['#E5594F', '#E58A3C', '#C98A2E', '#8DA83C', '#4E8A66', '#3F9A8C', '#4F7CAC', '#6B6FC4', '#8B6BB0', '#D2689A'];
+  const KINDS = () => state.settings.kinds;
+  const kind = id => KINDS().find(k => k.id === id) || { id: id, name: 'Altro', c: '#7A8F83' };
   const ICONS = {
     oggi: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M5 19l1.5-1.5M17.5 6.5L19 5"/>',
     cal: '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/>',
@@ -85,14 +86,14 @@
   function vCal() {
     const parts = calMonth.split('-').map(Number), y = parts[0], m = parts[1];
     const first = y + '-' + P.pad(m) + '-01', lead = P.wd(first), dim = new Date(y, m, 0).getDate();
-    let h = tip('t_cal', 'Il calendario', 'Tocca un giorno per vedere cosa c\'è e aggiungere un appuntamento. I puntini indicano: rosso = esame, blu = appuntamento, verde = studio.');
+    let h = tip('t_cal', 'Il calendario', 'Tocca un giorno per vedere cosa c\'è e aggiungere un appuntamento. I puntini indicano: rosso = esame, verde = studio; gli appuntamenti hanno il colore del loro tipo.');
     h += '<div class="cal-head"><button data-act="calPrev" aria-label="Mese precedente">‹</button><b>' + P.MESI[m - 1] + ' ' + y + '</b><button data-act="calNext" aria-label="Mese successivo">›</button></div>';
     h += '<div class="grid">' + P.WD_SHORT.map(n => '<div class="dow">' + n + '</div>').join('');
     for (let i = 0; i < lead; i++) h += '<div class="cell empty"></div>';
     for (let d = 1; d <= dim; d++) {
       const ds = y + '-' + P.pad(m) + '-' + P.pad(d);
-      const hasEx = state.exams.some(e => e.date === ds), hasEv = P.eventsOn(state, ds).length > 0, hasS = ctx.plan.sessions.some(x => x.date === ds);
-      h += '<button class="cell' + (ds === ctx.today ? ' today' : '') + (ds === selDay ? ' sel' : '') + '" data-act="selDay" data-d="' + ds + '"><span>' + d + '</span><i class="dots">' + (hasEx ? '<u class="dx"></u>' : '') + (hasEv ? '<u class="de"></u>' : '') + (hasS ? '<u class="ds"></u>' : '') + '</i></button>';
+      const hasEx = state.exams.some(e => e.date === ds), evCols = Array.from(new Set(P.eventsOn(state, ds).map(x => kind(x.ev.kind).c))).slice(0, 3), hasS = ctx.plan.sessions.some(x => x.date === ds);
+      h += '<button class="cell' + (ds === ctx.today ? ' today' : '') + (ds === selDay ? ' sel' : '') + '" data-act="selDay" data-d="' + ds + '"><span>' + d + '</span><i class="dots">' + (hasEx ? '<u class="dx"></u>' : '') + evCols.map(cl => '<u class="de" style="background:' + cl + '"></u>').join('') + (hasS ? '<u class="ds"></u>' : '') + '</i></button>';
     }
     h += '</div><h2>' + P.fullDay(selDay) + '</h2>';
     const items = dayItems(selDay);
@@ -164,16 +165,16 @@
   function closeSheet() { const el = $('#sheet'); el.classList.remove('open'); el.innerHTML = ''; document.body.classList.remove('lock'); currentSheet = null; }
   const setErr = m => { const e = $('#f-err'); if (e) e.textContent = m; };
 
-  function eventSheet(id, date) {
+  function eventSheet(id, date, draft) {
     const ev = id ? state.events.find(x => x.id === id) : null;
     const d0 = date || ctx.today;
-    const e = ev || { title: '', kind: 'app', date: d0, start: '10:00', end: '11:00', allDay: false, repeat: 'none', days: [P.wd(d0)], until: '' };
+    const e = draft || ev || { title: '', kind: 'app', date: d0, start: '10:00', end: '11:00', allDay: false, repeat: 'none', days: [P.wd(d0)], until: '' };
     const days = e.days && e.days.length ? e.days : [P.wd(e.date)];
-    currentSheet = { type: 'event', id: id };
+    currentSheet = { type: 'event', id: id, date: date };
     openSheet(id ? 'Modifica appuntamento' : 'Nuovo appuntamento',
       tip('t_event', 'Come si usa', 'Scrivi cosa è e quando. Per il lavoro scegli «Ogni settimana» e spunta i giorni: l\'app metterà lo studio negli altri momenti. Se aggiungi un impegno sopra una sessione già confermata, la sposto io.') +
       '<label class="f">Titolo</label><input id="f-title" value="' + esc(e.title) + '" placeholder="Es. Dentista, Lavoro…">' +
-      '<label class="f">Tipo</label><select id="f-kind">' + KINDS.map(k => '<option value="' + k.id + '"' + (e.kind === k.id ? ' selected' : '') + '>' + k.name + '</option>').join('') + '</select>' +
+      '<label class="f">Tipo</label><select id="f-kind" data-prev="' + esc(kind(e.kind).id) + '">' + KINDS().map(k => '<option value="' + esc(k.id) + '"' + (e.kind === k.id ? ' selected' : '') + '>' + esc(k.name) + '</option>').join('') + '<option value="__kinds">＋ Aggiungi o modifica i tipi…</option></select>' +
       '<label class="f">Data</label><input id="f-date" type="date" value="' + e.date + '">' +
       '<div class="inline" style="margin-top:12px"><input id="f-all" type="checkbox"' + (e.allDay ? ' checked' : '') + '><label for="f-all">Tutto il giorno</label></div>' +
       '<div id="f-times" class="two"' + (e.allDay ? ' hidden' : '') + '><div><label class="f">Dalle</label><input id="f-start" type="time" value="' + (e.start || '10:00') + '"></div><div><label class="f">Alle</label><input id="f-end" type="time" value="' + (e.end || '11:00') + '"></div></div>' +
@@ -182,17 +183,36 @@
       '<div id="f-until"' + (e.repeat && e.repeat !== 'none' ? '' : ' hidden') + '><label class="f">Fino al (facoltativo)</label><input id="f-untilv" type="date" value="' + (e.until || '') + '"></div>' +
       '<div id="f-err" class="err"></div><div class="btns"><button class="btn" data-act="saveEvent" data-id="' + (id || '') + '">Salva</button>' + (id ? '<button class="btn danger" data-act="delEvent" data-id="' + id + '">Elimina</button>' : '') + '</div>');
   }
+  function collectEvent() {
+    const days = Array.prototype.map.call(document.querySelectorAll('#f-days .chip.on'), b => +b.dataset.i);
+    const prev = $('#f-kind').dataset.prev;
+    return { title: $('#f-title').value, kind: prev, date: $('#f-date').value || ctx.today, start: $('#f-start').value || '10:00', end: $('#f-end').value || '11:00', allDay: $('#f-all').checked, repeat: $('#f-rep').value, days: days, until: $('#f-untilv').value };
+  }
+  function kindsSheet(st, keep) {
+    currentSheet = { type: 'kinds', st: st };
+    let b = tip('t_kinds', 'I tipi di appuntamento', 'Ogni tipo ha il suo colore, che vedrai nel calendario. Cambia il nome, scegli un colore dalla lista (o dal selettore a destra) e aggiungi nuovi tipi quando ti servono.');
+    KINDS().forEach(k => {
+      b += '<div class="phrow"><input data-kn="' + esc(k.id) + '" data-f="name" value="' + esc(k.name) + '"><div class="sws">' +
+        SWATCHES.map(c => '<button type="button" class="sw' + (c.toLowerCase() === k.c.toLowerCase() ? ' on' : '') + '" style="background:' + c + '" data-act="kindColor" data-id="' + esc(k.id) + '" data-c="' + c + '" aria-label="Colore"></button>').join('') +
+        '<input class="clr" type="color" data-kn="' + esc(k.id) + '" data-f="color" value="' + esc(k.c) + '"></div>' +
+        '<div class="btns" style="margin-top:8px"><button class="btn danger" data-act="kindDel" data-id="' + esc(k.id) + '"' + (KINDS().length <= 1 ? ' disabled' : '') + '>Elimina</button></div></div>';
+    });
+    b += '<button class="btn ghost block" data-act="kindAdd">+ Nuovo tipo</button><div class="btns"><button class="btn" data-act="kindsDone">Fatto</button></div>';
+    openSheet('Tipi di appuntamento', b, keep);
+  }
   function topicRow(t) {
     return '<div class="trow" data-tid="' + (t.id || '') + '"><input class="t-name" placeholder="Argomento" value="' + esc(t.name) + '"><input class="t-pages" type="number" inputmode="numeric" min="0" placeholder="Pag." value="' + (t.pages || '') + '"><select class="t-passes">' + [1, 2, 3, 4].map(n => '<option value="' + n + '"' + ((t.passes || 1) === n ? ' selected' : '') + '>' + n + '×</option>').join('') + '</select><button data-act="delTopicRow" aria-label="Togli">✕</button></div>';
   }
   function examForm(id) {
     const ex = id ? examById(id) : null;
-    const e = ex || { name: '', date: '', topics: [] };
+    const e = ex || { name: '', date: '', topics: [], phases: null };
     currentSheet = { type: 'examform', id: id };
     openSheet(id ? 'Modifica esame' : 'Nuovo esame',
-      tip('t_examform', 'Come si compila', 'Scrivi il nome e la data dell\'esame, poi gli argomenti da studiare con le pagine (se non le sai, lascia vuoto). «Passaggi» sono le volte che vuoi passare su quell\'argomento: con 2× ci torni una seconda volta. Puoi anche incollare un elenco, un argomento per riga.') +
+      tip('t_examform2', 'Come si compila', 'Scrivi il nome e la data dell\'esame. Gli argomenti puoi farli leggere all\'app da un file di appunti (PDF o testo) oppure scriverli tu, con le pagine se le sai. Togli la spunta alle fasi di studio che per questo esame non ti servono. «Passaggi» sono le volte che vuoi passare su un argomento.') +
       '<label class="f">Nome dell\'esame</label><input id="f-name" value="' + esc(e.name) + '" placeholder="Es. Anatomia">' +
       '<label class="f">Data dell\'esame</label><input id="f-date" type="date" value="' + e.date + '">' +
+      '<label class="f">Fasi di studio per questo esame</label><div class="chips" id="f-phases">' + state.settings.phases.map(p => '<button type="button" class="chip' + (!Array.isArray(e.phases) || e.phases.indexOf(p.id) >= 0 ? ' on' : '') + '" data-act="toggleDay" data-id="' + esc(p.id) + '">' + esc(p.name) + '</button>').join('') + '</div>' +
+      '<label class="f">Hai gli appunti in un file?</label><button class="btn ghost block" data-act="pickFile">Leggi gli argomenti da un file (PDF o testo)</button><input type="file" id="f-file" accept=".pdf,application/pdf,.txt,text/plain" hidden><div id="f-imp" class="imp"></div>' +
       '<label class="f">Argomenti</label><div class="trow"><small>Argomento</small><small>Pagine</small><small>Passaggi</small><span></span></div><div id="f-topics">' + (e.topics.length ? e.topics : [{ id: '', name: '', pages: '', passes: 1 }]).map(topicRow).join('') + '</div>' +
       '<button class="btn ghost block" data-act="addTopicRow">+ Aggiungi argomento</button>' +
       '<label class="f">Oppure incolla un elenco (uno per riga, con le pagine alla fine)</label><textarea id="f-bulk" placeholder="Ossa 30&#10;Muscoli 45"></textarea><button class="btn ghost block" data-act="bulkAdd">Aggiungi dall\'elenco</button>' +
@@ -248,6 +268,19 @@
     addEvent(el) { eventSheet(null, el.dataset.d); },
     editEvent(el) { eventSheet(el.dataset.id); },
     toggleDay(el) { el.classList.toggle('on'); },
+    pickFile() { const f = $('#f-file'); if (f) f.click(); },
+    kindColor(el) { const k = KINDS().find(x => x.id === el.dataset.id); if (k) { k.c = el.dataset.c; save(); kindsSheet(currentSheet.st, true); } },
+    kindAdd() { const id = 'k' + P.uid(); KINDS().push({ id: id, name: 'Nuovo tipo', c: SWATCHES[KINDS().length % SWATCHES.length] }); currentSheet.st.added = id; save(); kindsSheet(currentSheet.st); const pb = document.querySelector('#sheet .pb'); if (pb) pb.scrollTop = pb.scrollHeight; },
+    kindDel(el) {
+      const id = el.dataset.id, ks = KINDS();
+      if (ks.length <= 1) return;
+      const used = state.events.filter(x => x.kind === id).length;
+      if (!confirm(used ? 'Questo tipo è usato da ' + used + ' appuntament' + (used > 1 ? 'i' : 'o') + ': passeranno al primo tipo della lista. Eliminarlo?' : 'Eliminare questo tipo?')) return;
+      const rest = ks.filter(k => k.id !== id);
+      state.events.forEach(x => { if (x.kind === id) x.kind = rest[0].id; });
+      state.settings.kinds = rest; save(); kindsSheet(currentSheet.st, true);
+    },
+    kindsDone() { const st = currentSheet.st, d = st.draft; if (st.added) d.kind = st.added; else if (!KINDS().some(k => k.id === d.kind)) d.kind = KINDS()[0].id; eventSheet(st.id, st.date, d); },
     saveEvent(el) {
       const id = el.dataset.id, title = $('#f-title').value.trim() || 'Appuntamento', date = $('#f-date').value, all = $('#f-all').checked;
       const start = $('#f-start').value, end = $('#f-end').value, rep = $('#f-rep').value, until = $('#f-untilv').value;
@@ -289,8 +322,10 @@
         if (!n) return;
         topics.push({ id: r.dataset.tid || P.uid(), name: n, pages: Math.max(0, parseInt(r.querySelector('.t-pages').value, 10) || 0), passes: parseInt(r.querySelector('.t-passes').value, 10) || 1 });
       });
+      const selPh = Array.prototype.map.call(document.querySelectorAll('#f-phases .chip.on'), b => b.dataset.id);
+      if (!selPh.length) return setErr('Scegli almeno una fase di studio.');
       const old = id && examById(id);
-      const obj = { id: id || P.uid(), name: name, date: date, color: old ? old.color : COLORS[state.exams.length % COLORS.length], topics: topics };
+      const obj = { id: id || P.uid(), name: name, date: date, color: old ? old.color : COLORS[state.exams.length % COLORS.length], topics: topics, phases: selPh.length === state.settings.phases.length ? null : selPh };
       if (id) state.exams = state.exams.map(x => x.id === id ? obj : x); else state.exams.push(obj);
       closeSheet(); render(); examSheet(obj.id);
     },
@@ -378,6 +413,17 @@
       if (t.dataset.f === 'minPerPage') ph.minPerPage = Math.max(0.5, parseFloat(t.value) || 1);
       if (t.dataset.f === 'repeat') ph.repeat = t.checked;
       save();
+    } else if (t.dataset && t.dataset.kn) {
+      const k = KINDS().find(x => x.id === t.dataset.kn);
+      if (!k) return;
+      if (t.dataset.f === 'name') { k.name = t.value.trim() || k.name; save(); }
+      else { k.c = t.value; save(); kindsSheet(currentSheet.st, true); }
+    } else if (t.id === 'f-kind') {
+      if (t.value === '__kinds') kindsSheet({ id: currentSheet.id, date: currentSheet.date, draft: collectEvent() });
+      else t.dataset.prev = t.value;
+    } else if (t.id === 'f-file') {
+      const f = t.files && t.files[0]; t.value = '';
+      if (f) importFile(f);
     } else if (t.id === 'f-all') {
       $('#f-times').hidden = t.checked;
     } else if (t.id === 'f-rep') {
@@ -385,6 +431,32 @@
       $('#f-until').hidden = t.value === 'none';
     }
   });
+
+  /* ---------- argomenti da un file di appunti ---------- */
+  async function importFile(file) {
+    const out = $('#f-imp');
+    if (!out) return;
+    const say = (m, bad) => { out.textContent = m; out.className = 'imp' + (bad ? ' bad' : ''); };
+    say('Leggo il file…');
+    state.usage.actions.importFile = (state.usage.actions.importFile || 0) + 1;
+    try {
+      let r;
+      if (/\.pdf$/i.test(file.name) || file.type === 'application/pdf') r = await window.Topics.readPdf(file, (i, n) => say('Leggo la pagina ' + i + ' di ' + n + '…'));
+      else r = window.Topics.fromText(await file.text());
+      if (!r.topics.length) return say('Non ho trovato testo da leggere in questo file.', true);
+      const box = $('#f-topics');
+      if (!box) return;
+      Array.prototype.forEach.call(box.querySelectorAll('.trow'), row => { if (!row.querySelector('.t-name').value.trim()) row.remove(); });
+      r.topics.forEach(t => box.insertAdjacentHTML('beforeend', topicRow({ id: '', name: t.name, pages: t.pages, passes: 1 })));
+      const n = r.topics.length, what = { segnalibri: 'dall\'indice del file', titoli: 'dai titoli del file' }[r.mode];
+      say(what ? 'Ho trovato ' + n + ' argomenti ' + what + ' (' + r.total + ' pagine). Controlla l\'elenco qui sotto: puoi correggere i nomi, le pagine o togliere righe.' : 'Non ho trovato titoli chiari, quindi ho diviso il file in blocchi di 20 pagine (' + r.total + ' in tutto). Puoi rinominarli o cambiarli.');
+      box.scrollIntoView({ block: 'nearest' });
+    } catch (e) {
+      const m = String(e && e.message);
+      logErr('import ' + m);
+      say(m === 'scansione' ? 'Questo PDF è fatto di immagini (non ha testo) e non riesco a leggerlo. Prova con un PDF in cui il testo si può selezionare.' : m === 'protetto' ? 'Questo PDF è protetto da password: toglila e riprova.' : m === 'lib' ? 'Non riesco a caricare la lettura dei PDF. Controlla la connessione e riprova.' : 'Non riesco a leggere questo file. Prova con un altro.', true);
+    }
+  }
 
   /* ---------- collegamento con l'archivio privato ---------- */
   const DATA_REPO = 'andreaguiotto02-8/koalendario-data';
