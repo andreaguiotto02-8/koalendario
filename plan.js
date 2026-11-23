@@ -39,7 +39,7 @@
     ],
     winStart: '09:00', winEnd: '21:00', maxHours: 4, maxBlock: 90, minBlock: 20, breakMin: 10, offDays: []
   });
-  P.defaultState = () => ({ v: 1, events: [], exams: [], sessions: [], progress: {}, notices: [], notes: [], settings: P.defaultSettings() });
+  P.defaultState = () => ({ v: 1, events: [], exams: [], sessions: [], progress: {}, evDone: {}, notices: [], notes: [], settings: P.defaultSettings() });
   P.migrate = st => {
     const d = P.defaultState();
     st = st || {};

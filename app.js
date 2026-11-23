@@ -34,12 +34,14 @@
     if (state.tutorial[k]) return '';
     return '<div class="tip"><b>' + esc(title) + '</b><p>' + esc(text) + '</p><button class="btn ghost" data-act="tipOk" data-k="' + k + '">Ho capito</button></div>';
   }
+  const isDone = (id, d) => !!(state.evDone && state.evDone[id + '|' + d]);
+  function setDone(id, d, v) { state.evDone = state.evDone || {}; if (v) state.evDone[id + '|' + d] = true; else delete state.evDone[id + '|' + d]; }
   const examById = id => state.exams.find(e => e.id === id);
 
   /* ---------- elementi comuni ---------- */
   function dayItems(d) {
     const items = [];
-    P.eventsOn(state, d).forEach(e => items.push({ t: 'ev', start: e.start, ev: e.ev }));
+    P.eventsOn(state, d).forEach(e => items.push({ t: 'ev', start: e.start, ev: e.ev, d: d }));
     ctx.plan.sessions.filter(x => x.date === d).forEach(x => items.push({ t: 'ses', start: x.start, s: x }));
     state.exams.filter(e => e.date === d).forEach(e => items.push({ t: 'ex', start: -1, ex: e }));
     return items.sort((a, b) => a.start - b.start);
@@ -51,7 +53,8 @@
     if (it.t === 'ev') {
       const e = it.ev;
       const tm = e.allDay ? '<span class="time">Tutto<small>il giorno</small></span>' : '<span class="time">' + e.start + '<small>' + e.end + '</small></span>';
-      return '<button class="row" data-act="editEvent" data-id="' + e.id + '">' + tm + '<span class="bar" style="background:' + kind(e.kind).c + '"></span><span class="main"><b>' + esc(e.title) + '</b><small>' + kind(e.kind).name + (e.repeat && e.repeat !== 'none' ? ' · si ripete' : '') + '</small></span></button>';
+      const dn = isDone(e.id, it.d);
+      return '<div class="row' + (dn ? ' done' : '') + '" role="button" tabindex="0" data-act="editEvent" data-id="' + e.id + '" data-d="' + it.d + '">' + tm + '<span class="bar" style="background:' + kind(e.kind).c + '"></span><span class="main"><b>' + esc(e.title) + '</b><small>' + esc(kind(e.kind).name) + (e.repeat && e.repeat !== 'none' ? ' · si ripete' : '') + (dn ? ' · fatto ✓' : '') + '</small></span><button class="chk' + (dn ? ' on' : '') + '" data-act="evDone" data-id="' + e.id + '" data-d="' + it.d + '" aria-label="' + (dn ? 'Togli «fatto»' : 'Segna come fatto') + '">' + (dn ? '✓' : '') + '</button></div>';
     }
     const s = it.s, u = ctx.plan.units[s.unitKey], ex = u && examById(u.examId);
     if (!u) return '';
@@ -92,8 +95,8 @@
     for (let i = 0; i < lead; i++) h += '<div class="cell empty"></div>';
     for (let d = 1; d <= dim; d++) {
       const ds = y + '-' + P.pad(m) + '-' + P.pad(d);
-      const hasEx = state.exams.some(e => e.date === ds), evCols = Array.from(new Set(P.eventsOn(state, ds).map(x => kind(x.ev.kind).c))).slice(0, 3), hasS = ctx.plan.sessions.some(x => x.date === ds);
-      h += '<button class="cell' + (ds === ctx.today ? ' today' : '') + (ds === selDay ? ' sel' : '') + '" data-act="selDay" data-d="' + ds + '"><span>' + d + '</span><i class="dots">' + (hasEx ? '<u class="dx"></u>' : '') + evCols.map(cl => '<u class="de" style="background:' + cl + '"></u>').join('') + (hasS ? '<u class="ds"></u>' : '') + '</i></button>';
+      const hasEx = state.exams.some(e => e.date === ds), evCols = Array.from(new Set(P.eventsOn(state, ds).map(x => kind(x.ev.kind).c))).slice(0, 3).map(cl => ({ c: cl, done: P.eventsOn(state, ds).filter(x => kind(x.ev.kind).c === cl).every(x => isDone(x.ev.id, ds)) })), hasS = ctx.plan.sessions.some(x => x.date === ds);
+      h += '<button class="cell' + (ds === ctx.today ? ' today' : '') + (ds === selDay ? ' sel' : '') + '" data-act="selDay" data-d="' + ds + '"><span>' + d + '</span><i class="dots">' + (hasEx ? '<u class="dx"></u>' : '') + evCols.map(o => '<u class="de" style="background:' + o.c + (o.done ? ';opacity:.3' : '') + '"></u>').join('') + (hasS ? '<u class="ds"></u>' : '') + '</i></button>';
     }
     h += '</div><h2>' + P.fullDay(selDay) + '</h2>';
     const items = dayItems(selDay);
@@ -165,14 +168,14 @@
   function closeSheet() { const el = $('#sheet'); el.classList.remove('open'); el.innerHTML = ''; document.body.classList.remove('lock'); currentSheet = null; }
   const setErr = m => { const e = $('#f-err'); if (e) e.textContent = m; };
 
-  function eventSheet(id, date, draft) {
+  function eventSheet(id, date, draft, od) {
     const ev = id ? state.events.find(x => x.id === id) : null;
     const d0 = date || ctx.today;
     const e = draft || ev || { title: '', kind: 'app', date: d0, start: '10:00', end: '11:00', allDay: false, repeat: 'none', days: [P.wd(d0)], until: '' };
     const days = e.days && e.days.length ? e.days : [P.wd(e.date)];
-    currentSheet = { type: 'event', id: id, date: date };
+    currentSheet = { type: 'event', id: id, date: date, od: od };
     openSheet(id ? 'Modifica appuntamento' : 'Nuovo appuntamento',
-      tip('t_event', 'Come si usa', 'Scrivi cosa è e quando. Per il lavoro scegli «Ogni settimana» e spunta i giorni: l\'app metterà lo studio negli altri momenti. Se aggiungi un impegno sopra una sessione già confermata, la sposto io.') +
+      (id && od ? '<button class="btn ' + (isDone(id, od) ? 'ghost' : '') + ' block" data-act="evDoneSheet" data-id="' + id + '" data-d="' + od + '">' + (isDone(id, od) ? 'Annulla «fatto»' : '✓ Segna come fatto') + (e.repeat && e.repeat !== 'none' ? ' (' + P.fmtDay(od) + ')' : '') + '</button>' : '') + tip('t_event2', 'Come si usa', 'Quando hai fatto un appuntamento, spunta il cerchio a destra: sul calendario resta barrato. Scrivi cosa è e quando. Per il lavoro scegli «Ogni settimana» e spunta i giorni: l\'app metterà lo studio negli altri momenti. Se aggiungi un impegno sopra una sessione già confermata, la sposto io.') +
       '<label class="f">Titolo</label><input id="f-title" value="' + esc(e.title) + '" placeholder="Es. Dentista, Lavoro…">' +
       '<label class="f">Tipo</label><select id="f-kind" data-prev="' + esc(kind(e.kind).id) + '">' + KINDS().map(k => '<option value="' + esc(k.id) + '"' + (e.kind === k.id ? ' selected' : '') + '>' + esc(k.name) + '</option>').join('') + '<option value="__kinds">＋ Aggiungi o modifica i tipi…</option></select>' +
       '<label class="f">Data</label><input id="f-date" type="date" value="' + e.date + '">' +
@@ -266,7 +269,9 @@
     calNext() { const p = calMonth.split('-').map(Number); const d = new Date(p[0], p[1], 1); calMonth = P.ds(d).slice(0, 7); render(); },
     selDay(el) { selDay = el.dataset.d; render(); },
     addEvent(el) { eventSheet(null, el.dataset.d); },
-    editEvent(el) { eventSheet(el.dataset.id); },
+    editEvent(el) { eventSheet(el.dataset.id, null, null, el.dataset.d); },
+    evDone(el) { setDone(el.dataset.id, el.dataset.d, !isDone(el.dataset.id, el.dataset.d)); render(); },
+    evDoneSheet(el) { setDone(el.dataset.id, el.dataset.d, !isDone(el.dataset.id, el.dataset.d)); closeSheet(); render(); },
     toggleDay(el) { el.classList.toggle('on'); },
     pickFile() { const f = $('#f-file'); if (f) f.click(); },
     kindColor(el) { const k = KINDS().find(x => x.id === el.dataset.id); if (k) { k.c = el.dataset.c; save(); kindsSheet(currentSheet.st, true); } },
@@ -280,7 +285,7 @@
       state.events.forEach(x => { if (x.kind === id) x.kind = rest[0].id; });
       state.settings.kinds = rest; save(); kindsSheet(currentSheet.st, true);
     },
-    kindsDone() { const st = currentSheet.st, d = st.draft; if (st.added) d.kind = st.added; else if (!KINDS().some(k => k.id === d.kind)) d.kind = KINDS()[0].id; eventSheet(st.id, st.date, d); },
+    kindsDone() { const st = currentSheet.st, d = st.draft; if (st.added) d.kind = st.added; else if (!KINDS().some(k => k.id === d.kind)) d.kind = KINDS()[0].id; eventSheet(st.id, st.date, d, st.od); },
     saveEvent(el) {
       const id = el.dataset.id, title = $('#f-title').value.trim() || 'Appuntamento', date = $('#f-date').value, all = $('#f-all').checked;
       const start = $('#f-start').value, end = $('#f-end').value, rep = $('#f-rep').value, until = $('#f-untilv').value;
@@ -294,7 +299,7 @@
       selDay = date; calMonth = date.slice(0, 7);
       closeSheet(); render();
     },
-    delEvent(el) { if (!confirm('Eliminare questo appuntamento?')) return; state.events = state.events.filter(x => x.id !== el.dataset.id); closeSheet(); render(); },
+    delEvent(el) { if (!confirm('Eliminare questo appuntamento?')) return; state.events = state.events.filter(x => x.id !== el.dataset.id); Object.keys(state.evDone || {}).forEach(k => { if (k.indexOf(el.dataset.id + '|') === 0) delete state.evDone[k]; }); closeSheet(); render(); },
     addExam() { examForm(null); },
     editExam(el) { examForm(el.dataset.id); },
     openExam(el) { examSheet(el.dataset.id); },
@@ -419,7 +424,7 @@
       if (t.dataset.f === 'name') { k.name = t.value.trim() || k.name; save(); }
       else { k.c = t.value; save(); kindsSheet(currentSheet.st, true); }
     } else if (t.id === 'f-kind') {
-      if (t.value === '__kinds') kindsSheet({ id: currentSheet.id, date: currentSheet.date, draft: collectEvent() });
+      if (t.value === '__kinds') kindsSheet({ id: currentSheet.id, date: currentSheet.date, od: currentSheet.od, draft: collectEvent() });
       else t.dataset.prev = t.value;
     } else if (t.id === 'f-file') {
       const f = t.files && t.files[0]; t.value = '';
