@@ -75,10 +75,10 @@
     const units = [];
     const maxPass = Math.max(1, ...exam.topics.map(t => t.passes || 1));
     for (let pass = 1; pass <= maxPass; pass++) {
-      exam.topics.forEach(t => {
-        if (pass > (t.passes || 1)) return;
-        phases.forEach(ph => {
-          if (pass > 1 && !ph.repeat) return;
+      phases.forEach(ph => {
+        if (pass > 1 && !ph.repeat) return;
+        exam.topics.forEach(t => {
+          if (pass > (t.passes || 1)) return;
           const pages = t.pages > 0 ? t.pages : 10;
           let min = Math.round(pages * ph.minPerPage / 5) * 5;
           if (min < 15) min = 15;
