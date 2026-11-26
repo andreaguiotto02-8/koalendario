@@ -110,3 +110,5 @@ input.clr{width:44px;height:34px;padding:2px;border-radius:8px}
 .chk{flex:none;align-self:center;width:30px;height:30px;border-radius:50%;border:2px solid var(--line);background:var(--card);font-size:16px;line-height:1;color:#fff;display:flex;align-items:center;justify-content:center}
 .chk.on{background:var(--green);border-color:var(--green)}
 div.row[role=button]{cursor:pointer}
+
+.dhrow{display:flex;align-items:center;gap:10px;margin-bottom:6px}.dhrow span{flex:1}.dhrow input{width:80px}

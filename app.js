@@ -132,7 +132,12 @@
     const s = state.settings;
     let h = tip('t_opz', 'Le opzioni', 'Qui decidi quando puoi studiare, quante ore al massimo al giorno e le fasi del tuo metodo di studio. Puoi cambiare i nomi, aggiungere o togliere fasi: l\'app si adatta. Nella sezione Collegamento metti il nome del telefono e la chiave che ti dà Otto.');
     h += '<h1>Opzioni</h1><h2>Quando studi</h2><div class="card"><div class="two"><div><label class="f" style="margin-top:0">Dalle</label><input type="time" data-s="winStart" value="' + s.winStart + '"></div><div><label class="f" style="margin-top:0">Alle</label><input type="time" data-s="winEnd" value="' + s.winEnd + '"></div></div>';
-    h += '<label class="f">Ore massime di studio al giorno</label><input type="number" inputmode="decimal" step="0.5" min="1" max="12" data-s="maxHours" value="' + s.maxHours + '">';
+    h += '<label class="f">Ore di studio al giorno, di solito</label><input type="number" inputmode="decimal" step="0.5" min="1" max="12" data-s="maxHours" value="' + s.maxHours + '">';
+    h += '<label class="f">Ore di studio giorno per giorno</label><p class="mute" style="margin:0 0 8px">Lascia vuoto per usare le ore di solito, scrivi 0 per un giorno senza studio. Gli appuntamenti del giorno si tolgono da queste ore (il lavoro no: per i giorni di lavoro scrivi tu quante ore puoi studiare).</p>';
+    ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica'].forEach((n, i) => {
+      const v = s.dayHours && typeof s.dayHours[i] === 'number' ? s.dayHours[i] : '';
+      h += '<div class="dhrow"><span>' + n + '</span><input type="number" inputmode="decimal" step="0.5" min="0" max="12" data-dh="' + i + '" placeholder="' + s.maxHours + '" value="' + v + '"><small>ore</small></div>';
+    });
     h += '<label class="f">Durata massima di una sessione (minuti)</label><input type="number" inputmode="numeric" step="5" min="30" max="240" data-s="maxBlock" value="' + s.maxBlock + '">';
     h += '<label class="f">Giorni senza studio</label><div class="chips">' + P.WD_SHORT.map((n, i) => '<button class="chip' + (s.offDays.indexOf(i) >= 0 ? ' on' : '') + '" data-act="offDay" data-i="' + i + '">' + n + '</button>').join('') + '</div></div>';
     h += '<h2>Le fasi del tuo metodo</h2><p class="mute" style="margin:0 0 8px">Ogni argomento passa da queste fasi, in ordine. «Minuti per pagina» serve all\'app per calcolare il tempo. Se spunti «Si ripete», la fase torna anche nei passaggi successivi.</p>';
@@ -411,6 +416,12 @@
       if (k === 'maxBlock') v = Math.min(240, Math.max(30, v || 90));
       if ((k === 'winStart' || k === 'winEnd') && (!v || P.tm(k === 'winStart' ? v : state.settings.winStart) >= P.tm(k === 'winEnd' ? v : state.settings.winEnd))) { t.value = state.settings[k]; return; }
       state.settings[k] = v; save();
+    } else if (t.dataset && t.dataset.dh !== undefined) {
+      const i = +t.dataset.dh, v = parseFloat(String(t.value).replace(',', '.'));
+      state.settings.dayHours = state.settings.dayHours || {};
+      if (isNaN(v)) { delete state.settings.dayHours[i]; t.value = ''; }
+      else { const c = Math.min(12, Math.max(0, v)); state.settings.dayHours[i] = c; t.value = c; }
+      save();
     } else if (t.dataset && t.dataset.ph) {
       const ph = state.settings.phases.find(p => p.id === t.dataset.ph);
       if (!ph) return;
@@ -487,7 +498,7 @@
       version: VER, sentAt: new Date().toISOString(), firstOpen: new Date(u.first).toISOString(), lastOpen: new Date(u.last).toISOString(),
       opens: u.opens, screens: u.screens, actions: u.actions,
       counts: { events: state.events.length, exams: state.exams.length, topics: topics, sessionsAccepted: state.sessions.filter(x => x.status === 'accepted').length, sessionsDone: state.sessions.filter(x => x.status === 'done').length, notes: state.notes.length, phases: state.settings.phases.length },
-      settings: { winStart: state.settings.winStart, winEnd: state.settings.winEnd, maxHours: state.settings.maxHours, maxBlock: state.settings.maxBlock, offDays: state.settings.offDays },
+      settings: { winStart: state.settings.winStart, winEnd: state.settings.winEnd, maxHours: state.settings.maxHours, dayHours: state.settings.dayHours, maxBlock: state.settings.maxBlock, offDays: state.settings.offDays },
       tipsSeen: Object.keys(state.tutorial), errors: errs
     };
   }

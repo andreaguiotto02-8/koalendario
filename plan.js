@@ -37,7 +37,7 @@
       { id: 'lavoro', name: 'Lavoro', c: '#C98A2E' },
       { id: 'altro', name: 'Altro', c: '#7A8F83' }
     ],
-    winStart: '09:00', winEnd: '21:00', maxHours: 4, maxBlock: 90, minBlock: 20, breakMin: 10, offDays: []
+    winStart: '09:00', winEnd: '21:00', maxHours: 4, dayHours: {}, maxBlock: 90, minBlock: 20, breakMin: 10, offDays: []
   });
   P.defaultState = () => ({ v: 1, events: [], exams: [], sessions: [], progress: {}, evDone: {}, notices: [], notes: [], settings: P.defaultSettings() });
   P.migrate = st => {
@@ -46,6 +46,7 @@
     Object.keys(d).forEach(k => { if (st[k] === undefined) st[k] = d[k]; });
     st.settings = Object.assign(P.defaultSettings(), st.settings || {});
     if (!Array.isArray(st.settings.phases) || !st.settings.phases.length) st.settings.phases = P.defaultSettings().phases;
+    if (!st.settings.dayHours || typeof st.settings.dayHours !== 'object') st.settings.dayHours = {};
     if (!Array.isArray(st.settings.kinds) || !st.settings.kinds.length) st.settings.kinds = P.defaultSettings().kinds;
     return st;
   };
@@ -119,6 +120,16 @@
     P.eventsOn(st, d).forEach(e => { slots = subtract(slots, e.start, e.end); });
     return slots;
   }
+  /* minuti di studio consentiti in un giorno: ore del giorno (o quelle di solito) meno la durata degli appuntamenti (il lavoro non si toglie) */
+  P.dayLimit = (st, d) => {
+    const s = st.settings, dh = s.dayHours && s.dayHours[P.wd(d)];
+    const hours = typeof dh === 'number' && dh >= 0 ? dh : s.maxHours;
+    const iv = P.eventsOn(st, d).filter(e => !e.ev.allDay && e.ev.kind !== 'lavoro').map(e => [e.start, e.end]).sort((a, b) => a[0] - b[0]);
+    let busy = 0, cs = null, ce = null;
+    iv.forEach(x => { if (cs === null) { cs = x[0]; ce = x[1]; } else if (x[0] <= ce) ce = Math.max(ce, x[1]); else { busy += ce - cs; cs = x[0]; ce = x[1]; } });
+    if (cs !== null) busy += ce - cs;
+    return Math.max(0, Math.round(hours * 60) - busy);
+  };
   const nowInfo = now => {
     const nowMin = now.getHours() * 60 + now.getMinutes();
     return { today: P.ds(now), nowMin: nowMin, from15: Math.ceil(nowMin / 15) * 15 };
@@ -133,7 +144,7 @@
       if (!days[d]) {
         let slots = baseSlots(st, d, d === today ? ni.from15 : 0), used = 0;
         kept.forEach(x => { if (x.date === d) { slots = subtract(slots, x.start, x.end); used += x.end - x.start; } });
-        days[d] = { slots: slots.filter(z => z.end - z.start >= minBlock), used: used };
+        days[d] = { slots: slots.filter(z => z.end - z.start >= minBlock), used: used, limit: P.dayLimit(st, d) };
       }
       return days[d];
     }
@@ -149,7 +160,7 @@
           if (s.offDays.indexOf(P.wd(d)) >= 0) continue;
           const dd = day(d);
           for (let i = 0; i < dd.slots.length && rem > 0;) {
-            const cap = s.maxHours * 60 - dd.used;
+            const cap = dd.limit - dd.used;
             if (cap <= 0) break;
             const slot = dd.slots[i];
             const len = Math.min(slot.end - slot.start, s.maxBlock, rem, cap);
